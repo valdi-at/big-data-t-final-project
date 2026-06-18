@@ -6,3 +6,6 @@ old/
 # the datasets
 kepler_cumulative.csv
 tess_toi.csv
+
+# catboost training logs
+catboost_info/

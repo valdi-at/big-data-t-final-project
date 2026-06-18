@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-Trains a Random Forest classifier on labeled transit signals from both the Kepler and TESS missions to predict whether a transit signal is a real planet or a false positive. Achieves 0.95 ROC-AUC on a held-out test set. Also breaks down performance per telescope to check whether the model generalizes across missions.
+Trains four classifiers (Random Forest, XGBoost, LightGBM, CatBoost) on labeled transit signals from both the Kepler and TESS missions to predict whether a transit signal is a real planet or a false positive. All four models reach ~0.95 ROC-AUC on a held-out test set. The notebook compares them across six metrics, cross-validation stability, training speed, and per-mission performance, then picks a winner.
 
 ---
 
@@ -43,35 +43,40 @@ Two features are computed from existing columns:
 
 This brings the total feature count to 9 (7 base + 2 engineered).
 
-### Model
+### Models
 
-A scikit-learn `Pipeline` with two steps:
+All four models are wrapped in a scikit-learn `Pipeline` with `StandardScaler` as the first step, so features measured in large units (stellar temperature in Kelvin) don't swamp features measured in small ones (radius ratio). Each handles the ~58/42 class imbalance differently:
 
-1. `StandardScaler` - centers and scales each feature to unit variance, computed on training data only.
-2. `RandomForestClassifier` - 200 trees, `class_weight='balanced'` to compensate for the ~58/42 false-positive-to-confirmed imbalance.
+| Model         | Imbalance handling                                    |
+| ------------- | ----------------------------------------------------- |
+| Random Forest | `class_weight='balanced'`                             |
+| XGBoost       | `scale_pos_weight` (negative-to-positive count ratio) |
+| LightGBM      | `is_unbalance=True`                                   |
+| CatBoost      | `auto_class_weights='Balanced'`                       |
 
 The dataset is split 80/20 with stratification, giving 7,780 training rows and 1,945 test rows.
 
 ### Evaluation
 
-Test-set results on the combined dataset:
+Test-set results for all four models:
 
-| Metric    | Score |
-| --------- | ----- |
-| Accuracy  | 0.887 |
-| Precision | 0.827 |
-| Recall    | 0.921 |
-| F1        | 0.871 |
-| ROC-AUC   | 0.955 |
+| Model         | Accuracy | Precision | Recall | F1     | ROC-AUC |
+| ------------- | -------- | --------- | ------ | ------ | ------- |
+| Random Forest | 0.8869   | 0.8267    | 0.9208 | 0.8712 | 0.9548  |
+| XGBoost       | 0.8859   | 0.8178    | 0.9332 | 0.8717 | 0.9571  |
+| LightGBM      | 0.8812   | 0.8167    | 0.9208 | 0.8656 | 0.9552  |
+| CatBoost      | 0.8853   | 0.8197    | 0.9282 | 0.8706 | 0.9568  |
 
-Per-mission breakdown on the same test set:
+XGBoost edges out the others on both F1 and ROC-AUC. All four models are close enough that the differences are not practically meaningful at this scale. LightGBM trains fastest at 0.34s; XGBoost is the slowest at ~30s.
+
+Per-mission breakdown (Random Forest, as the baseline):
 
 | Mission | N     | Accuracy | F1    | ROC-AUC |
 | ------- | ----- | -------- | ----- | ------- |
 | Kepler  | 1,449 | 0.908    | 0.885 | 0.967   |
 | TESS    | 496   | 0.827    | 0.843 | 0.908   |
 
-The model performs better on Kepler rows, which is expected given that ~75% of training data comes from Kepler. The TESS drop in precision suggests TESS false positives are harder to separate in this feature space, likely because TESS targets brighter, noisier stars.
+All models perform better on Kepler rows, which is expected given that ~75% of training data comes from Kepler. The TESS drop in precision suggests TESS false positives are harder to separate in this feature space, likely because TESS targets brighter, noisier stars.
 
 ---
 
