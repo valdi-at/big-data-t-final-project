@@ -1,0 +1,8 @@
+.venv
+
+# just old files
+old/
+
+# the datasets
+kepler_cumulative.csv
+tess_toi.csv
